@@ -1,0 +1,158 @@
+﻿@using TicketSystem.Models
+@model Ticket
+@{
+    ViewData["Title"] = "إصدار مخالفة جديدة";
+    Layout = "_OfficerLayout";
+}
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+    <title></title>
+</head>
+<body>
+    <div class="container-fluid">
+        <div class="card shadow-sm">
+            <div class="card-header bg-primary text-white">
+                <h5><i class="fas fa-ticket-alt me-2"></i>إصدار مخالفة مرورية</h5>
+            </div>
+            <div class="card-body">
+                <!-- رسالة النجاح -->
+                @if (TempData["Success"] != null)
+                {
+                    <div class="alert alert-success">
+                        @TempData["Success"]
+                    </div>
+                }
+
+                <form asp-action="WritingTicket">
+                    <!-- رقم المخالفة (تلقائي) -->
+                    <div class="mb-3" hidden>
+                        <label class="form-label">رقم المخالفة</label>
+                        <input asp-for="Ticket_Id" class="form-control" readonly />
+                    </div>
+
+                    <!-- بريد السائق -->
+                    <div class="mb-3">
+                        <label asp-for="Email" class="form-label">البريد الإلكتروني للسائق</label>
+                        <input asp-for="Email" class="form-control" placeholder="driverid@example.com" required />
+                        <span asp-validation-for="Email" class="text-danger"></span>
+                    </div>
+
+                    <!-- اسم الضابط (مخفي) -->
+                    <div class="mb-3">
+                        <input type="hidden" asp-for="IssuedBy" />
+                    </div>
+
+                    <!-- مكان المخالفة -->
+                    <div class="mb-3">
+                        <label asp-for="Violation_Place" class="form-label">مكان المخالفة</label>
+                        <input asp-for="Violation_Place" class="form-control" placeholder="شارع بنغ_فينيسيا" required>
+                        <span asp-validation-for="Violation_Place" class="text-danger"></span>
+                    </div>
+
+                    <!-- رقم اللوحة -->
+                    <div class="mb-3">
+                        <label asp-for="Plate_Number" class="form-label">رقم اللوحة</label>
+                        <input asp-for="Plate_Number" class="form-control" id="Plate_Number" placeholder="1234" required />
+                        <span asp-validation-for="Plate_Number" class="text-danger"></span>
+                    </div>
+
+                    <!-- تقرير المخالفة -->
+                    <div class="mb-3">
+                        <label asp-for="Notes" class="form-label" >ملاحظات</label>
+                        <input asp-for="Notes" class="form-control" placeholder="ملاحظات حول إصدار المخالفة" required />
+                        <span asp-validation-for="Notes" class="text-danger"></span>
+                    </div>
+
+                    <!-- قائمة أنواع المخالفات -->
+                    <div class="mb-3">
+                        <label class="form-label">أنواع المخالفات</label>
+                        <div id="violation-list" class="d-flex flex-wrap gap-3">
+                            @foreach (var violation in new[] { "تجاوز السرعة", "وقوف خاطئ", "تجاوز إشارة", "عكس الاتجاه", "انتهاء التأمين", "انتهاء رخصة القيادة" })
+                            {
+                                <label class="form-check-label d-flex align-items-center">
+                                    <input class="form-check-input me-2 violation-checkbox"
+                                           type="checkbox"
+                                           name="Violation"
+                                           value="@violation" />
+                                    @violation
+                                </label>
+                            }
+                        </div>
+                        <div id="violation-error" class="text-danger mt-1" style="display:none;">
+                            يجب اختيار مخالفة واحدة على الأقل قبل إصدار التذكرة.
+                        </div>
+                    </div>
+
+                    <!-- مبلغ الغرامة (مخفي) -->
+                    <div class="mb-3" hidden>
+                        <label asp-for="FineAmount" class="form-label">مبلغ الغرامة</label>
+                        <input asp-for="FineAmount"
+                               id="fineamount"
+                               class="form-control" />
+                    </div>
+
+                    <!-- تاريخ الاستحقاق -->
+                    <div class="col-md-3">
+                        <label asp-for="Due_Date" class="form-label">تاريخ الاستحقاق</label>
+                        <input asp-for="Due_Date" type="date" class="form-control" required/>
+                    </div>
+
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-danger">
+                            <i class="fas fa-paper-plane me-2"></i>إصدار المخالفة
+                        </button>
+                    </div>
+                    <p>@ViewData["m"]</p>
+                </form>
+            </div>
+        </div>
+    </div>
+       <p>hello</p>
+</body>
+</html>
+
+@section Scripts {
+    <script>
+        document.addEventListener("DOMContentLoaded", function () {
+            const fineAmountInput = document.getElementById("fineamount");
+            const checkboxes = document.querySelectorAll(".violation-checkbox");
+            const form = document.querySelector("form[asp-action='WritingTicket']");
+            const errorMsg = document.getElementById("violation-error");
+
+            const fineRates = {
+                "تجاوز السرعة": 100,
+                "وقوف خاطئ": 50,
+                "عكس الاتجاه": 500,
+                "انتهاء التأمين": 1000,
+                "انتهاء رخصة القيادة": 1000,
+                "تجاوز إشارة": 75
+            };
+
+            function updateFineAmount() {
+                let total = 0;
+                checkboxes.forEach(cb => {
+                    if (cb.checked) {
+                        total += fineRates[cb.value] || 0;
+                    }
+                });
+                fineAmountInput.value = total;
+            }
+
+            checkboxes.forEach(cb => {
+                cb.addEventListener("change", updateFineAmount);
+            });
+
+            form.addEventListener("submit", function (e) {
+                const anyChecked = Array.from(checkboxes).some(cb => cb.checked);
+                if (!anyChecked) {
+                    e.preventDefault();
+                    errorMsg.style.display = "block";
+                } else {
+                    errorMsg.style.display = "none";
+                }
+            });
+
+            updateFineAmount();
+        });
+    </script>
+}
