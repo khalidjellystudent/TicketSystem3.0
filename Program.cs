@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.EntityFrameworkCore;
 using TicketSystem.Data;
+using TicketSystem.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -24,6 +25,15 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
 
 // Only call this ONCE
 builder.Services.AddControllersWithViews();
+
+builder.Services.Configure<PlateRecognizerOptions>(
+    builder.Configuration.GetSection("PlateRecognizer"));
+
+builder.Services.AddHttpClient<IPlateRecognizerClient, PlateRecognizerClient>();
+
+
+
+
 
 var app = builder.Build();
 

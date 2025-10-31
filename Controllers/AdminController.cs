@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using TicketSystem.Data;
 using TicketSystem.Models;
@@ -18,6 +18,84 @@ public class AdminController : Controller
     }
     public IActionResult Index()
     {
+        // Dashboard Statistics
+        var totalUsers = _db.Users.Count();
+        var totalOfficers = _db.Users.Count(u => u.Role == "Officer");
+        var totalRegularUsers = _db.Users.Count(u => u.Role == "User");
+        var totalTickets = _db.Tickets.Count();
+        var totalFines = _db.Tickets.Sum(t => (decimal?)t.FineAmount) ?? 0;
+        var pendingTickets = _db.Tickets.Count(t => t.Status == "Pending");
+        var paidTickets = _db.Tickets.Count(t => t.Status == "Paid");
+        var appealedTickets = _db.Tickets.Count(t => t.Appealed);
+        var unreadFeedbacks = _db.Feedbacks.Count(f => !f.IsRead);
+        var totalFeedbacks = _db.Feedbacks.Count();
+
+        // Recent tickets (last 7 days)
+        var sevenDaysAgo = DateTime.Now.AddDays(-7);
+        var recentTickets = _db.Tickets.Count(t => t.Ticket_Time >= sevenDaysAgo);
+
+        // Monthly ticket trends (last 6 months)
+        var sixMonthsAgo = DateTime.Now.AddMonths(-6);
+        var monthlyTickets = _db.Tickets
+            .Where(t => t.Ticket_Time >= sixMonthsAgo)
+            .GroupBy(t => new { t.Ticket_Time.Year, t.Ticket_Time.Month })
+            // switch to in-memory evaluation before formatting the month string
+            .AsEnumerable()
+            .Select(g => new
+            {
+                Month = $"{g.Key.Month}/{g.Key.Year}",
+                Count = g.Count(),
+                TotalFines = g.Sum(t => t.FineAmount)
+            })
+            .OrderBy(x => x.Month)
+            .ToList();
+
+        // Top violations
+        var topViolations = _db.Tickets
+            // switch to in-memory evaluation so string.Split/Trim are executed client-side
+            .AsEnumerable()
+            .SelectMany(t => (t.Violations ?? string.Empty).Split(',', StringSplitOptions.RemoveEmptyEntries))
+            .GroupBy(v => v.Trim())
+            .Select(g => new { Violation = g.Key, Count = g.Count() })
+            .OrderByDescending(x => x.Count)
+            .Take(5)
+            .ToList();
+
+        // Top officers by ticket count
+        var topOfficers = _db.Tickets
+            .GroupBy(t => t.IssuedBy)
+            .Select(g => new
+            {
+                OfficerEmail = g.Key,
+                TicketCount = g.Count(),
+                TotalFines = g.Sum(t => t.FineAmount)
+            })
+            .OrderByDescending(x => x.TicketCount)
+            .Take(5)
+            .ToList();
+
+        // Recent feedbacks
+        var recentFeedbacks = _db.Feedbacks
+            .OrderByDescending(f => f.CreatedAt)
+            .Take(5)
+            .ToList();
+
+        ViewBag.TotalUsers = totalUsers;
+        ViewBag.TotalOfficers = totalOfficers;
+        ViewBag.TotalRegularUsers = totalRegularUsers;
+        ViewBag.TotalTickets = totalTickets;
+        ViewBag.TotalFines = totalFines;
+        ViewBag.PendingTickets = pendingTickets;
+        ViewBag.PaidTickets = paidTickets;
+        ViewBag.AppealedTickets = appealedTickets;
+        ViewBag.UnreadFeedbacks = unreadFeedbacks;
+        ViewBag.TotalFeedbacks = totalFeedbacks;
+        ViewBag.RecentTickets = recentTickets;
+        ViewBag.MonthlyTickets = monthlyTickets;
+        ViewBag.TopViolations = topViolations;
+        ViewBag.TopOfficers = topOfficers;
+        ViewBag.RecentFeedbacks = recentFeedbacks;
+
         return View();
     }
     public IActionResult ResetPassword()
@@ -149,6 +227,7 @@ public class AdminController : Controller
             TotalFines = tickets.Sum(t => t.FineAmount),
             TicketsPerMonth = tickets
                 .GroupBy(t => new { t.Ticket_Time.Year, t.Ticket_Time.Month })
+                .AsEnumerable()
                 .Select(g => new MonthlyStat
                 {
                     Month = $"{g.Key.Month}/{g.Key.Year}",

@@ -78,7 +78,7 @@ namespace TicketSystem.Controllers
         public IActionResult WritingTicket(Ticket u, string[] Violation)
         {      
             // set who issued the ticket
-            u.IssuedBy = User.FindFirst(ClaimTypes.Email)?.Value;
+            u.IssuedBy = User.FindFirst(ClaimTypes.Email)?.Value ?? "Unknown"; // ?? "Unknown" as fallback incase the claim is missing witch should never happens
 
             // join selected violations into one comma-delimited string
             u.Violations = (Violation != null)
@@ -101,7 +101,7 @@ namespace TicketSystem.Controllers
                 return RedirectToAction("IssueTicket");
             }
 
-            var ticketJson = TempData["PendingTicket"].ToString();
+            var ticketJson = TempData["PendingTicket"].ToString() ;
             var ticket = JsonSerializer.Deserialize<Ticket>(ticketJson);
 
             // Store again in TempData for the final submission

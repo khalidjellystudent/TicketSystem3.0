@@ -9,12 +9,12 @@ namespace TicketSystem.Models
         [Key]
         public int Ticket_Id { get; set; }
 
-        public string Violations { get; set; } // e.g., "speeding,parking"
+        public string Violations { get; set; } = ""; // e.g., "speeding,parking"
 
-        public string Plate_Number { get; set; }
-        public string Violation_Place { get; set; }
-        public string IssuedBy { get; set; }
-        public string Notes { get; set; } 
+        public string Plate_Number { get; set; } = "";
+        public string Violation_Place { get; set; } = "";
+        public string IssuedBy { get; set; } = "";
+        public string Notes { get; set; }  = "";
         public string Status { get; set; } = "Pending";
         public DateTime Ticket_Time { get; set; } = DateTime.Now;
         public DateTime Due_Date { get; set; }
@@ -22,7 +22,7 @@ namespace TicketSystem.Models
         public decimal FineAmount { get; set; }
 
         [ForeignKey("Users")]
-        public string Email { get; set; }
-        public User Users { get; set; }
+        public string Email { get; set; } = "";
+        public User Users { get; set; }=  null!;
     }
 }

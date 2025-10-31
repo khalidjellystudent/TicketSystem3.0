@@ -15,6 +15,8 @@ namespace TicketSystem.Data
 
         public DbSet<Feedback> Feedbacks { get; set; }
 
+        
+
 
     }
 
