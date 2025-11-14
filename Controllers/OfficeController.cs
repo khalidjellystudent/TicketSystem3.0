@@ -93,7 +93,7 @@ namespace TicketSystem.Controllers
                     TempData["SuccessMessage"] = "Registration successful! Please log in.";
                     return RedirectToAction("Login", "Home"); // Redirect to login instead of Office
                 }
-                catch (Exception ex)
+                catch (Exception)
                 {
                     // In real apps, log the error
                     ModelState.AddModelError("", "An error occurred. Please try again.");
@@ -123,8 +123,7 @@ namespace TicketSystem.Controllers
             return View("TicketResults", tickets);
         }
 
-        /// delete tickets action 
-        /// 
+        
         
 
 

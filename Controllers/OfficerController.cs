@@ -1,8 +1,10 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using System.Security.Claims;
 using System.Text.Json;
+using System.Collections.Generic;
 using TicketSystem.Data;
 using TicketSystem.Models;
 
@@ -12,13 +14,13 @@ namespace TicketSystem.Controllers
     [Authorize(Roles ="Officer")]
     public class OfficerController : Controller
     {
-        AppDbContext _db;
-        
-        
+        private readonly AppDbContext _db;
+        private readonly ILogger<OfficerController> _logger;
 
-        public OfficerController(AppDbContext context)
+        public OfficerController(AppDbContext context, ILogger<OfficerController> logger)
         {
             _db = context;
+            _logger = logger;
         }
         public IActionResult Index()
         {
@@ -75,6 +77,7 @@ namespace TicketSystem.Controllers
         }
 
         [HttpPost]
+        [ValidateAntiForgeryToken]
         public IActionResult WritingTicket(Ticket u, string[] Violation)
         {      
             // set who issued the ticket
@@ -101,8 +104,18 @@ namespace TicketSystem.Controllers
                 return RedirectToAction("IssueTicket");
             }
 
-            var ticketJson = TempData["PendingTicket"].ToString() ;
-            var ticket = JsonSerializer.Deserialize<Ticket>(ticketJson);
+            var ticketJson = TempData["PendingTicket"] as string;
+            if (string.IsNullOrEmpty(ticketJson))
+            {
+                return RedirectToAction("IssueTicket");
+            }
+
+            var ticket = JsonSerializer.Deserialize<Ticket?>(ticketJson);
+            if (ticket == null)
+            {
+                TempData["ErrorMessage"] = "Invalid ticket data.";
+                return RedirectToAction("IssueTicket");
+            }
 
             // Store again in TempData for the final submission
             TempData["PendingTicket"] = ticketJson;
@@ -118,12 +131,24 @@ namespace TicketSystem.Controllers
 
         // New action to handle the final submission
         [HttpPost]
+        [ValidateAntiForgeryToken]
         public IActionResult ConfirmTicket(bool confirm)
         {
             if (confirm && TempData["PendingTicket"] != null)
             {
-                var ticketJson = TempData["PendingTicket"].ToString();
-                var ticket = JsonSerializer.Deserialize<Ticket>(ticketJson);
+                var ticketJson = TempData["PendingTicket"] as string;
+                if (string.IsNullOrEmpty(ticketJson))
+                {
+                    return RedirectToAction("IssueTicket");
+                }
+
+                var ticket = JsonSerializer.Deserialize<Ticket?>(ticketJson);
+                if (ticket == null)
+                {
+                    TempData["PendingTicket"] = ticketJson;
+                    TempData["ErrorMessage"] = "Invalid ticket data.";
+                    return RedirectToAction("ConfirmTicket");
+                }
 
                 // ✅ Check for at least one violation
                 if (string.IsNullOrWhiteSpace(ticket.Violations))
@@ -145,9 +170,19 @@ namespace TicketSystem.Controllers
                     }
                 }
 
-                // ✅ Save to DB
-                _db.Tickets.Add(ticket);
-                _db.SaveChanges();
+                // ✅ Save to DB (log any error)
+                try
+                {
+                    _db.Tickets.Add(ticket);
+                    _db.SaveChanges();
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Error saving ticket for {Email}", ticket?.Email);
+                    TempData["PendingTicket"] = ticketJson; // keep data
+                    TempData["ErrorMessage"] = "An error occurred while saving the ticket. Please try again later.";
+                    return RedirectToAction("ConfirmTicket");
+                }
 
                 TempData["SuccessMessage"] = "Ticket issued successfully!";
                 return RedirectToAction("TicketIssued", new { id = ticket.Ticket_Id });
@@ -161,13 +196,22 @@ namespace TicketSystem.Controllers
 
 
         [HttpPost]
+        [ValidateAntiForgeryToken]
         public IActionResult DeleteTicket(int ticket_Id)
         {
             var ticket = _db.Tickets.FirstOrDefault(t => t.Ticket_Id == ticket_Id);
             if (ticket != null)
             {
-                _db.Tickets.Remove(ticket);
-                _db.SaveChanges();
+                try
+                {
+                    _db.Tickets.Remove(ticket);
+                    _db.SaveChanges();
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Failed deleting ticket {TicketId}", ticket_Id);
+                    TempData["Message"] = "Unable to delete ticket at this time.";
+                }
             }
 
             return RedirectToAction("Process"); // Replace with your actual view name
@@ -193,12 +237,19 @@ namespace TicketSystem.Controllers
         [HttpGet]
         public IActionResult SearchTickets(string plateNumber)
         {
+            // Guard empty input: return empty results instead of throwing or returning everything
+            if (string.IsNullOrWhiteSpace(plateNumber))
+            {
+                ViewBag.SearchQuery = plateNumber;
+                return View("TicketResults", new List<Ticket>());
+            }
+
             // Search case-insensitive and trim whitespace
-            var normalizedPlate = plateNumber?.Trim().ToUpper();
+            var normalizedPlate = plateNumber.Trim().ToUpper();
 
             var tickets = _db.Tickets
                 .Include(t => t.Users) // Load related user data
-                .Where(t => t.Plate_Number.ToUpper() == normalizedPlate)
+                .Where(t => t.Plate_Number != null && t.Plate_Number.ToUpper() == normalizedPlate)
                 .OrderByDescending(t => t.Ticket_Time)
                 .ToList();
 
@@ -208,6 +259,7 @@ namespace TicketSystem.Controllers
         ////////// ************************************under development i am tinking about removing it 90% ********************
         ///
         [HttpPost]
+        [ValidateAntiForgeryToken]
         public IActionResult UpdateNotes(int ticketId, string notes)
         {
             var ticket = _db.Tickets.Find(ticketId);
@@ -250,7 +302,9 @@ namespace TicketSystem.Controllers
                 return RedirectToAction("IssueTicket"); // fallback if data is missing
             }
 
-            var ticket = JsonSerializer.Deserialize<Ticket>(json);
+            var ticket = JsonSerializer.Deserialize<Ticket?>(json);
+            if (ticket == null) return RedirectToAction("IssueTicket");
+
             return View("IssueTicket", ticket); // pass the ticket back to the form
         }
 
