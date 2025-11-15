@@ -7,7 +7,14 @@ var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container FIRST
 var conn = builder.Configuration.GetConnectionString("DefaultConnection");
-builder.Services.AddDbContext<AppDbContext>(opt => opt.UseSqlServer(conn));
+//builder.Services.AddDbContext<AppDbContext>(opt => opt.UseSqlServer(conn));    **** this is the standard for local host
+
+
+
+
+// for hosting on rail
+builder.Services.AddDbContext<AppDbContext>(opt =>
+    opt.UseNpgsql(conn));
 
 // Authentication
 builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
@@ -44,12 +51,12 @@ var app = builder.Build();
 
 ///   //// azura code
 ///
-/*using (var scope = app.Services.CreateScope())
+using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
     db.Database.Migrate();
 }
-*/
+
 
 // Middleware ORDER IS CRITICAL
 if (!app.Environment.IsDevelopment())
